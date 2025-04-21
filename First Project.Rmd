@@ -1,0 +1,396 @@
+---
+title: "AP_ASSIGNMENT_20415440"
+author: "Zayd Orabi"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+
+# PART 1
+
+Write the code to analyse the distribution of COVID patients (confirmed
+or suspected) across counties. Write the code to investigate the
+distribution of the patients across age groups (e.g., 0-18, 19-35,
+36-50, 51+). Visualise both the findings using the histogram. Explain
+your findings.
+
+```{r}
+#Loading libraries
+library(DBI)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+#Loading datasets
+patients <- read.csv("patientsUG.csv")
+encounters <- read.csv("encountersUG.csv")
+conditions <- read.csv("conditionsUG.csv")
+```
+
+```{r}
+head(patients)
+head(encounters)
+head(conditions)
+```
+
+```{r}
+#Combining data sets to extract necessary data
+part1_covid <- patients %>%
+  inner_join(encounters, by = c("Id" = "PATIENT")) %>%
+  filter(REASONDESCRIPTION %in% c("COVID-19", "Suspected COVID-19")) %>%
+  distinct(Id, .keep_all = TRUE)
+
+head(part1_covid)
+```
+
+```{r}
+#Analyze the distribution across counties
+county_distribution <- part1_covid %>%
+  group_by(COUNTY) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+print(county_distribution)
+```
+
+```{r}
+#Visualising the distribution.
+ggplot(county_distribution, aes(x = reorder(COUNTY, -count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + #Flipped the Axis so county labels dont overlap
+  labs(title = "Distribution of COVID-19 Cases Across Counties",
+       x = "County",
+       y = "Number of Cases")
+```
+
+The bar plot shows an uneven distribution of COVID-19 cases across
+counties, with some counties being more affected than others. Middlesex
+County stands out as an outlier with almost double the amount of cases
+of any other county. The differences in the amount of cases could be due
+to factors like population density or measures taken within that county
+to prevent the spread of covid.
+
+```{r}
+#Calculate age of each patient
+part1_covid_age <- part1_covid %>%
+  mutate(BIRTHDATE = as.Date(BIRTHDATE),
+         AGE = as.integer(floor((Sys.Date() - BIRTHDATE) / 365)))
+
+head(part1_covid_age)
+```
+
+```{r}
+#Categorize into age groups
+part1_covid_agegroup <- part1_covid_age %>%
+  mutate(AGE_GROUP = case_when(
+    AGE <= 18 ~ "0-18",
+    AGE <= 35 ~ "19-35",
+    AGE <= 50 ~ "36-50",
+    AGE > 50 ~ "51+"
+  ))
+
+head(part1_covid_agegroup)
+```
+
+```{r}
+#Display the distribution across age groups
+agegroup_distribution <- part1_covid_agegroup %>%
+  group_by(AGE_GROUP) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+print(agegroup_distribution)
+```
+
+```{r}
+#Visualising the distribution
+ggplot(part1_covid_agegroup, aes(x = AGE_GROUP)) +
+  geom_histogram(stat = "count") +
+  labs(title = "Distribution of COVID-19 Patients Across Age Groups",
+       x = "Age Group",
+       y = "Number of Patients") +
+  theme_minimal()
+```
+
+The distribution of patients across age groups is not normal. The
+significantly higher number of admitted patients in the 51+ age group
+highlights the vulnerability of older adults to COVID-19. The high
+number of cases in the 19-35 age group may result from greater social
+interaction, work-related exposures, and possibly lower adherence to
+preventive measures.
+
+# PART 2
+
+Filter those patients in the dataset that have contracted COVID-19 or
+Suspected COVID-19; ; what are the top 10 most common conditions
+(symptoms) related to the patients? Do the conditions differ between
+genders? Provide a table to rank the top 10 conditions for male and
+female patients separately. Elaborate on the findings.
+
+```{r}
+#Filter conditions related to COVID-19 or Suspected COVID-19
+covid_conditions <- conditions %>%
+  filter(DESCRIPTION %in% c("COVID-19", "Suspected COVID-19"))
+
+head(covid_conditions)
+```
+
+```{r}
+#Filter the conditions dataset for the unique patient Ids
+covid_patient_ids <- unique(covid_conditions$PATIENT)
+
+covid_related_conditions <- conditions %>%
+  filter(PATIENT %in% covid_patient_ids & ENCOUNTER %in% covid_conditions$ENCOUNTER)
+
+head(covid_related_conditions)
+```
+
+```{r}
+#Join with patients data set for gender
+part2_conditions <- merge(covid_related_conditions, patients, by.x = "PATIENT", by.y = "Id")
+
+head(part2_conditions)
+```
+
+```{r}
+#Count the conditions
+count_conditions <- part2_conditions %>%
+  group_by(DESCRIPTION) %>%
+  filter(!DESCRIPTION %in% c("COVID-19", "Suspected COVID-19")) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(count_conditions)
+```
+
+the top 10 most common COVID-19 related symptoms are: 
+1. Fever 
+2. Cough
+3. Loss of taste 
+4. Fatigue 
+5. Sputum finding 
+6. Dyspnea 
+7. Wheezing 
+8. Joint Pain 
+9. Muscle Pain 
+10. Sore throat
+
+```{r}
+#Count the conditions for male patients
+count_conditions_male <- part2_conditions %>%
+  filter(GENDER == "M") %>%
+  filter(!DESCRIPTION %in% c("COVID-19", "Suspected COVID-19")) %>%
+  group_by(DESCRIPTION) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(count_conditions_male)
+```
+
+the top 10 most common COVID-19 related symptoms for males are: 1. Fever
+2. Cough 3. Loss of taste 4. Fatigue 5. Sputum finding 6. Dyspnea 7.
+Wheezing 8. Joint Pain 9. Muscle Pain 10. Headache
+
+```{r}
+#Count the conditions for female patients
+count_conditions_female <- part2_conditions %>%
+  filter(GENDER == "F") %>%
+  filter(!DESCRIPTION %in% c("COVID-19", "Suspected COVID-19")) %>%
+  group_by(DESCRIPTION) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(count_conditions_female)
+```
+
+the top 10 most common COVID-19 related symptoms for females are: 1.
+Fever 2. Cough 3. Loss of taste 4. Fatigue 5. Sputum finding 6. Dyspnea
+7. Wheezing 8. Joint Pain 9. Muscle Pain 10. Sore throat
+
+The similar top symptoms for both genders indicate that COVID-19
+symptoms are common across the board. However, specific differences,
+such as sore throat being more common in females and headache in males,
+suggest variations in disease manifestation or reporting, possibly due
+to biological or social factors.
+
+# PART 3
+
+Write the code to analyse the factors that might influence the
+hospitalisation rate for the COVID patient (confirmed or suspected) in
+the dataset. Any factors in the dataset, such as age, gender, zip code,
+marital status, race and county, can be considered. Pick 2 of the
+factors and explain if there is a trend that explains the variation.
+
+```{r}
+part3_covid <- patients %>%
+  inner_join(encounters, by = c("Id" = "PATIENT")) %>%
+  filter(REASONDESCRIPTION %in% c("COVID-19")) 
+
+head(part3_covid)
+```
+
+```{r}
+#Separating county and encounter class for bar graph
+hospitalization1 <- part3_covid %>%
+  group_by(COUNTY, ENCOUNTERCLASS) %>%
+  summarise(count = n()) %>%
+  mutate(rate = count / sum(count) * 100)
+
+print(hospitalization1)
+```
+
+```{r}
+#Plotting bar graph
+ggplot(hospitalization1, aes(x = COUNTY, y = rate, fill = ENCOUNTERCLASS)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Hospitalization Rate by County", x = "County", y = "Rate (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The dominance of inpatient encounters across counties suggests that
+COVID-19 cases requiring significant medical intervention are
+widespread, affecting all regions similarly. The variation in wellness
+encounters might be influenced by factors such as healthcare access,
+population demographics, and regional healthcare policies. Counties with
+higher wellness encounter rates may have better access to healthcare
+facilities, leading to more routine check-ups and non-emergency visits.
+
+```{r}
+#Separating county and encounter class for bar graph
+hospitalization2 <- part3_covid %>%
+  group_by(GENDER, ENCOUNTERCLASS) %>%
+  summarise(count = n()) %>%
+  mutate(rate = count / sum(count) * 100)
+
+head(hospitalization2)
+```
+
+```{r}
+#Plotting bar graph
+ggplot(hospitalization2, aes(x = GENDER, y = rate, fill = ENCOUNTERCLASS)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Hospitalization Rate by Gender", x = "Gender", y = "Rate (%)")
+```
+
+The higher rate of inpatient encounters suggests that severe cases
+requiring hospital admission are more common among both genders, but
+slightly more prevalent in females. The higher wellness encounter rate
+in males could indicate a greater frequency of routine check-ups or
+non-emergency visits among male patients.
+
+# PART 4
+
+```{r}
+part2_conditions <- part2_conditions %>%
+  mutate(
+    START = as.Date(START, format="%Y-%m-%d"),
+    STOP = as.Date(STOP, format="%Y-%m-%d"),
+    BIRTHDATE = as.Date(BIRTHDATE, format="%Y-%m-%d"),
+    DEATHDATE = as.Date(DEATHDATE, format="%Y-%m-%d", errors = "coerce")
+  )
+```
+
+
+```{r}
+#Calculate age at the time of diagnosis
+part4_conditions <- part2_conditions %>%
+  mutate(
+    AGE_AT_DIAGNOSIS = as.numeric(difftime(START, BIRTHDATE, units = "days")) / 365
+  )
+
+head(part4_conditions)
+```
+
+```{r}
+#Add a column to determine if the patient recovered
+part4_conditions <- part4_conditions %>%
+  mutate(
+    RECOVERED = ifelse(!is.na(STOP), "Recovered", "Not Recovered")
+  )
+
+head(part4_conditions)
+```
+
+```{r}
+#Analyze demographics, symptoms, and timeline of diagnosis and recovery
+part4_summary <- part4_conditions %>%
+  distinct(PATIENT, .keep_all = TRUE) %>%
+  group_by(RECOVERED) %>%
+  summarise(
+    avg_age = mean(AGE_AT_DIAGNOSIS, na.rm = TRUE),
+    gender_distribution = list(table(GENDER)),
+    race_distribution = list(table(RACE)),
+    avg_recovery_duration = mean(as.numeric(difftime(STOP, START, units = "days")), na.rm = TRUE)
+  )
+
+print(part4_summary)
+```
+
+```{r}
+print(part4_summary$gender_distribution)
+```
+
+```{r}
+print(part4_summary$race_distribution)
+```
+
+
+```{r}
+#Additional analysis on the symptoms
+part4_symptoms <- part4_conditions %>%
+  group_by(RECOVERED, DESCRIPTION) %>%
+  summarise(
+    symptom_count = n()
+  ) %>%
+  arrange(RECOVERED, desc(symptom_count))
+
+print(part4_symptoms)
+```
+
+Based on the data analysis, several key observations can be made. Firstly, younger individuals are more likely to recover from COVID-19, likely due to stronger immune systems and fewer preexisting conditions. Secondly, females have a higher recovery rate than males. This might be due to biological differences, social behaviors, and possibly different levels of exposure to the virus. Females may also engage in more health-conscious behaviors, contributing to their higher recovery rates. Thirdly, Native Americans appear to have the highest recovery rate, though the sample size is too small for definitive conclusions. Among larger racial groups, Asians have the highest recovery rate at 94%, while African Americans have the lowest at 92%. These disparities could be influenced by factors such as socioeconomic status, access to healthcare, and living conditions. Additionally, social determinants of health, including employment types, living environments, and education levels, may also play significant roles in these differences.
+
+# END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
